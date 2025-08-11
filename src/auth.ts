@@ -8,7 +8,7 @@ export class AuthManager {
     this.authFile = authFilePath || "./twitter-auth.json";
   }
   
-  async login(useExistingProfile: boolean = false): Promise<void> {
+  async login(useExistingProfile: boolean = false, headless: boolean = true): Promise<void> {
     let browser: Browser;
     let context: any;
     let page: Page;
@@ -28,21 +28,21 @@ export class AuthManager {
           await this.copyProfileFiles(profilePath, tempProfile);
           
           context = await firefox.launchPersistentContext(tempProfile, {
-            headless: false
+            headless
           });
           page = context.pages()[0] || await context.newPage();
         } catch (error) {
           console.log('⚠️ Failed to copy profile, using default method');
-          browser = await firefox.launch({ headless: false });
+          browser = await firefox.launch({ headless });
           page = await browser.newPage();
         }
       } else {
         console.log('⚠️ No Firefox profile found, using temporary profile');
-        browser = await firefox.launch({ headless: false });
+        browser = await firefox.launch({ headless });
         page = await browser.newPage();
       }
     } else {
-      browser = await firefox.launch({ headless: false });
+      browser = await firefox.launch({ headless });
       page = await browser.newPage();
     }
     

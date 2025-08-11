@@ -9,8 +9,9 @@ export class TwitterScraper {
     this.auth = authManager || new AuthManager();
   }
   
-  async getPosts(options: GetOptions & { debug?: boolean }): Promise<TwitterPost[]> {
-    const browser: Browser = await firefox.launch({ headless: !options.debug });
+  async getPosts(options: GetOptions & { debug?: boolean; headless?: boolean }): Promise<TwitterPost[]> {
+    const headless = options.headless !== false && !options.debug; // デバッグ時はGUI表示
+    const browser: Browser = await firefox.launch({ headless });
     const page: Page = await browser.newPage();
     
     try {

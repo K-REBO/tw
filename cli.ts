@@ -17,11 +17,12 @@ await new Command()
   .command("login", "Login to Twitter")
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
   .option("--use-profile", "Use existing Firefox profile (automatic login if already logged in)", { default: false })
+  .option("--no-headless", "Show browser window (default: headless)", { default: false })
   .action(async (options: any) => {
     const auth = new AuthManager(options.authFile);
     console.log(colors.blue("🔐 Logging in to Twitter..."));
     try {
-      await auth.login(options.useProfile);
+      await auth.login(options.useProfile, !options.noHeadless);
       console.log(colors.green("✅ Login successful!"));
     } catch (error) {
       console.error(colors.red("❌ Login failed:"), (error as Error).message);
@@ -55,6 +56,7 @@ await new Command()
   .option("--hashtag <tag>", "Posts with specific hashtag")
   .option("--debug", "Show debug information", { default: false })
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--no-headless", "Show browser window (default: headless)", { default: false })
   .action(async (options: any) => {
     const auth = new AuthManager(options.authFile);
     const scraper = new TwitterScraper(auth);
@@ -74,7 +76,10 @@ await new Command()
         console.log(colors.blue("🔍 Scraping Twitter posts..."));
       }
       
-      const posts = await scraper.getPosts(options as GetOptions);
+      const posts = await scraper.getPosts({
+        ...options as GetOptions,
+        headless: !options.noHeadless
+      });
       
       const output = formatOutput(posts, options.format as "table" | "json", {
         verbose: options.verbose,
