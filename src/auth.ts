@@ -1,4 +1,3 @@
-import { firefox, Browser, Page } from "npm:playwright@^1.40.0";
 import type { AuthData } from "./types.ts";
 
 export class AuthManager {
@@ -9,9 +8,11 @@ export class AuthManager {
   }
   
   async login(useExistingProfile: boolean = false, headless: boolean = true): Promise<void> {
-    let browser: Browser;
+    // Dynamic import for faster CLI startup
+    const { firefox } = await import("npm:playwright@^1.40.0");
+    let browser: any;
     let context: any;
-    let page: Page;
+    let page: any;
     
     if (useExistingProfile) {
       // Try to find and use existing Firefox profile

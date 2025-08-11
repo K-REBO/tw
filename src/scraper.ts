@@ -1,4 +1,3 @@
-import { firefox, Browser, Page } from "npm:playwright@^1.40.0";
 import type { TwitterPost, GetOptions } from "./types.ts";
 import { AuthManager } from "./auth.ts";
 
@@ -10,9 +9,11 @@ export class TwitterScraper {
   }
   
   async getPosts(options: GetOptions & { debug?: boolean; headless?: boolean }): Promise<TwitterPost[]> {
+    // Dynamic import for faster CLI startup
+    const { firefox } = await import("npm:playwright@^1.40.0");
     const headless = options.headless !== false && !options.debug; // デバッグ時はGUI表示
-    const browser: Browser = await firefox.launch({ headless });
-    const page: Page = await browser.newPage();
+    const browser = await firefox.launch({ headless });
+    const page = await browser.newPage();
     
     try {
       // Load authentication
@@ -119,7 +120,7 @@ export class TwitterScraper {
     }
   }
   
-  private async extractPosts(page: Page, options: GetOptions & { debug?: boolean }): Promise<TwitterPost[]> {
+  private async extractPosts(page: any, options: GetOptions & { debug?: boolean }): Promise<TwitterPost[]> {
     return await page.evaluate((opts) => {
       // Try multiple selectors for tweets
       let tweets = (document as any).querySelectorAll('article[data-testid="tweet"]');
