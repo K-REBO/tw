@@ -16,11 +16,12 @@ await new Command()
   
   .command("login", "Login to Twitter")
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--use-profile", "Use existing Firefox profile (automatic login if already logged in)", { default: false })
   .action(async (options: any) => {
     const auth = new AuthManager(options.authFile);
     console.log(colors.blue("🔐 Logging in to Twitter..."));
     try {
-      await auth.login();
+      await auth.login(options.useProfile);
       console.log(colors.green("✅ Login successful!"));
     } catch (error) {
       console.error(colors.red("❌ Login failed:"), (error as Error).message);
