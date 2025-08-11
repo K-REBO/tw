@@ -3,7 +3,11 @@ import type { TwitterPost, GetOptions } from "./types.ts";
 import { AuthManager } from "./auth.ts";
 
 export class TwitterScraper {
-  private auth = new AuthManager();
+  private auth: AuthManager;
+  
+  constructor(authManager?: AuthManager) {
+    this.auth = authManager || new AuthManager();
+  }
   
   async getPosts(options: GetOptions & { debug?: boolean }): Promise<TwitterPost[]> {
     const browser: Browser = await firefox.launch({ headless: !options.debug });

@@ -2,7 +2,11 @@ import { firefox, Browser, Page } from "npm:playwright@^1.40.0";
 import type { AuthData } from "./types.ts";
 
 export class AuthManager {
-  private authFile = "./twitter-auth.json";
+  private authFile: string;
+  
+  constructor(authFilePath?: string) {
+    this.authFile = authFilePath || "./twitter-auth.json";
+  }
   
   async login(): Promise<void> {
     const browser: Browser = await firefox.launch({ 

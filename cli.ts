@@ -7,8 +7,7 @@ import { AuthManager } from "./src/auth.ts";
 import { formatOutput } from "./src/formatter.ts";
 import type { GetOptions } from "./src/types.ts";
 
-const scraper = new TwitterScraper();
-const auth = new AuthManager();
+// These will be initialized per command with custom auth file path
 
 await new Command()
   .name("tw")
@@ -16,7 +15,9 @@ await new Command()
   .description("Twitter post scraper without API")
   
   .command("login", "Login to Twitter")
-  .action(async () => {
+  .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .action(async (options: any) => {
+    const auth = new AuthManager(options.authFile);
     console.log(colors.blue("🔐 Logging in to Twitter..."));
     try {
       await auth.login();
@@ -28,7 +29,9 @@ await new Command()
   })
   
   .command("logout", "Clear stored credentials")
-  .action(async () => {
+  .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .action(async (options: any) => {
+    const auth = new AuthManager(options.authFile);
     await auth.logout();
     console.log(colors.green("✅ Logged out successfully"));
   })
@@ -50,7 +53,11 @@ await new Command()
   .option("--min-likes <number>", "Minimum like count", { default: 0 })
   .option("--hashtag <tag>", "Posts with specific hashtag")
   .option("--debug", "Show debug information", { default: false })
+  .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
   .action(async (options: any) => {
+    const auth = new AuthManager(options.authFile);
+    const scraper = new TwitterScraper(auth);
+    
     if (!await auth.isLoggedIn()) {
       console.error(colors.red("❌ Please login first: tw login"));
       Deno.exit(1);
