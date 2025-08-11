@@ -1,0 +1,39 @@
+# Authentication files
+twitter-auth.json
+
+# Output files
+*.json
+!deno.json
+!package.json
+
+# Deno
+deno.lock
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node modules (if any)
+node_modules/
+
+# Environment variables
+.env
+.env.local
