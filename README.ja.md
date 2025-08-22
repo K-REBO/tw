@@ -54,7 +54,7 @@ Firefoxブラウザが開きます。Twitterにログインしてタイムライ
 ## 主要なオプション
 
 | オプション | 説明 | デフォルト |
-|-----------|------|-----------|
+|---|---|---|
 | `--from <user>` | 特定ユーザーの投稿 | - |
 | `--search <keyword>` | キーワード検索 | - |
 | `--limit <number>` | 取得件数 (最大100) | 10 |
@@ -66,6 +66,30 @@ Firefoxブラウザが開きます。Twitterにログインしてタイムライ
 | `--min-likes <number>` | 最低いいね数 | 0 |
 | `--verified` | 認証済みユーザーのみ | false |
 | `--no-media` | メディアURL非表示 | false |
+
+## 高度なオプション
+
+| オプション | 説明 | デフォルト |
+|---|---|---|
+| `--headless` | ヘッドレスモードを制御。`--no-headless`でブラウザ表示。 | `true` |
+| `--auth-file <path>` | 認証ファイルのパスを指定。 | `./twitter-auth.json` |
+| `--profile <path>` | 既存のFirefoxプロファイルを使用してログイン。 | - |
+
+### Firefoxプロファイルの使用
+
+既存のFirefoxプロファイルを使用してログインする場合（二要素認証を回避するなど）、`--profile`オプションを使用できます。
+
+1.  Firefoxのプロファイルパスを見つけます。
+    -   **macOS:** `~/Library/Application Support/Firefox/Profiles/<あなたのプロファイル>`
+    -   **Linux:** `~/.mozilla/firefox/<あなたのプロファイル>`
+    -   **Windows:** `%APPDATA%\Mozilla\Firefox\Profiles\<あなたのプロファイル>`
+2.  プロファイルパスを指定してloginコマンドを実行します。
+
+```bash
+./tw-single.ts login --profile /path/to/your/firefox/profile
+```
+
+これにより既存のブラウザセッションが再利用されるため、パスワードの再入力が不要になる場合があります。
 
 ## 実用例
 
@@ -150,7 +174,7 @@ Media 1: https://pbs.twimg.com/media/example.jpg
 ## 全オプション一覧
 
 | オプション | 説明 | 例 |
-|-----------|------|---|
+|---|---|---|
 | `--from <user>` | 特定ユーザー | `--from @elonmusk` |
 | `--search <keyword>` | キーワード | `--search "機械学習"` |
 | `--limit <number>` | 件数制限 | `--limit 50` |
@@ -167,6 +191,9 @@ Media 1: https://pbs.twimg.com/media/example.jpg
 | `--verbose` | 詳細表示 | `--verbose` |
 | `--no-media` | メディア非表示 | `--no-media` |
 | `--debug` | デバッグ情報 | `--debug` |
+| `--headless` | ヘッドレスモードで実行 | `--headless` |
+| `--auth-file <path>` | 認証ファイルのパス | `--auth-file /path/to/auth.json` |
+| `--profile <path>` | Firefoxプロファイルのパス | `--profile /path/to/firefox/profile` |
 
 ## 必要環境
 

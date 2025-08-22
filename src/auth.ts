@@ -54,7 +54,7 @@ export class AuthManager {
         
         try {
           // Wait a bit to see if we're already logged in
-          await page.waitForURL("**/home", { timeout: 5000 });
+          await page.waitForURL(/.*x\.com\/home.*/, { timeout: 5000 });
           console.log("✅ Already logged in with existing Firefox profile!");
           
           // Extract cookies and save them
@@ -91,7 +91,17 @@ export class AuthManager {
       await Deno.stdin.read(buffer);
       
       // Wait for timeline to load
-      await page.waitForURL("**/home", { timeout: 60000 });
+      console.log("⏳ Waiting for login completion...");
+      try {
+        await page.waitForURL(/.*x\.com\/home.*/, { timeout: 30000 });
+      } catch {
+        // Try alternative method - check current URL
+        const currentUrl = page.url();
+        console.log("Current URL:", currentUrl);
+        if (!currentUrl.includes("/home") && !currentUrl.includes("x.com") && !currentUrl.includes("twitter.com")) {
+          throw new Error("Login may have failed - please check if you're logged in");
+        }
+      }
       
       // Extract cookies and user agent
       const cookies = await (context || page.context()).cookies();

@@ -9,20 +9,34 @@ import type { GetOptions } from "./src/types.ts";
 
 // These will be initialized per command with custom auth file path
 
+// Generate time-based version (YYYY.MM.DD format)
+const generateVersion = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const day = now.getDate().toString().padStart(2, '0');
+  return `${year}.${month}.${day}`;
+};
+
 await new Command()
   .name("tw")
-  .version("1.0.0")
+  .version(generateVersion())
   .description("Twitter post scraper without API")
+  .action(function() {
+    this.showHelp();
+  })
   
   .command("login", "Login to Twitter")
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
   .option("--use-profile", "Use existing Firefox profile (automatic login if already logged in)", { default: false })
-  .option("--no-headless", "Show browser window (default: headless)", { default: false })
+  .option("--show-browser", "Show browser window (default: headless)", { default: false })
   .action(async (options: any) => {
     const auth = new AuthManager(options.authFile);
+    // Default to headless, unless --show-browser is specified
+    const headless = !options.showBrowser;
     console.log(colors.blue("🔐 Logging in to Twitter..."));
     try {
-      await auth.login(options.useProfile, !options.noHeadless);
+      await auth.login(options.useProfile, headless);
       console.log(colors.green("✅ Login successful!"));
     } catch (error) {
       console.error(colors.red("❌ Login failed:"), (error as Error).message);
@@ -56,7 +70,7 @@ await new Command()
   .option("--hashtag <tag>", "Posts with specific hashtag")
   .option("--debug", "Show debug information", { default: false })
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
-  .option("--no-headless", "Show browser window (default: headless)", { default: false })
+  .option("--show-browser", "Show browser window (default: headless)", { default: false })
   .action(async (options: any) => {
     const auth = new AuthManager(options.authFile);
     const scraper = new TwitterScraper(auth);
@@ -76,9 +90,12 @@ await new Command()
         console.log(colors.blue("🔍 Scraping Twitter posts..."));
       }
       
+      // Force headless to true unless --show-browser is specified
+      const headlessValue = !options.showBrowser;
+      
       const posts = await scraper.getPosts({
         ...options as GetOptions,
-        headless: !options.noHeadless
+        headless: headlessValue
       });
       
       const output = formatOutput(posts, options.format as "table" | "json", {

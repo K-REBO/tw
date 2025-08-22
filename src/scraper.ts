@@ -11,7 +11,8 @@ export class TwitterScraper {
   async getPosts(options: GetOptions & { debug?: boolean; headless?: boolean }): Promise<TwitterPost[]> {
     // Dynamic import for faster CLI startup
     const { firefox } = await import("npm:playwright@^1.40.0");
-    const headless = options.headless !== false && !options.debug; // デバッグ時はGUI表示
+    // Simple headless logic: default true, false only for debug or explicit --no-headless
+    const headless = options.debug ? false : (options.headless ?? true);
     const browser = await firefox.launch({ headless });
     const page = await browser.newPage();
     
@@ -43,6 +44,17 @@ export class TwitterScraper {
       
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
       
+      if (options.debug) {
+        console.log("🔍 Current URL after navigation:", page.url());
+        console.log("🔍 Page title:", await page.title());
+        
+        // Check if redirected to login
+        const currentUrl = page.url();
+        if (currentUrl.includes("/login") || currentUrl.includes("/i/flow/login")) {
+          console.log("⚠️  Redirected to login page - authentication may have failed");
+        }
+      }
+      
       // Wait a bit for dynamic content to load
       await page.waitForTimeout(3000);
       
@@ -62,6 +74,15 @@ export class TwitterScraper {
             const elements = document.querySelectorAll(sel);
             results[sel] = elements.length;
           });
+          
+          // Check body content
+          results.bodyText = document.body?.innerText?.slice(0, 200) || 'No body text';
+          results.htmlLength = document.documentElement?.outerHTML?.length || 0;
+          
+          // Check for common error/loading indicators
+          results.hasLoginForm = !!document.querySelector('input[name="text"]') || !!document.querySelector('input[data-testid="ocfEnterTextTextInput"]');
+          results.hasLoadingSpinner = !!document.querySelector('[data-testid="spinner"]') || !!document.querySelector('[aria-label="Loading"]');
+          results.hasErrorMessage = document.body?.innerText?.includes('Something went wrong') || document.body?.innerText?.includes('Try again');
           
           // Get first few elements to see structure
           const firstArticle = document.querySelector('article');

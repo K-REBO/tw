@@ -54,7 +54,7 @@ Firefox browser will open. Log in to Twitter and press Enter when you see your t
 ## Main Options
 
 | Option | Description | Default |
-|--------|-------------|---------|
+|---|---|---|
 | `--from <user>` | Posts from specific user | - |
 | `--search <keyword>` | Search by keyword | - |
 | `--limit <number>` | Number of posts (max: 100) | 10 |
@@ -66,6 +66,30 @@ Firefox browser will open. Log in to Twitter and press Enter when you see your t
 | `--min-likes <number>` | Minimum like count | 0 |
 | `--verified` | Verified users only | false |
 | `--no-media` | Hide media URLs | false |
+
+## Advanced Options
+
+| Option | Description | Default |
+|---|---|---|
+| `--headless` | Control headless mode. Use `--no-headless` to show browser. | `true` |
+| `--auth-file <path>` | Specify authentication file path. | `./twitter-auth.json` |
+| `--profile <path>` | Use existing Firefox profile for login. | - |
+
+### Using a Firefox Profile
+
+If you want to use your existing Firefox profile for login (e.g., to avoid 2FA), you can use the `--profile` option.
+
+1.  Find your Firefox profile path.
+    -   **macOS:** `~/Library/Application Support/Firefox/Profiles/<your-profile>`
+    -   **Linux:** `~/.mozilla/firefox/<your-profile>`
+    -   **Windows:** `%APPDATA%\Mozilla\Firefox\Profiles\<your-profile>`
+2.  Run the login command with the profile path.
+
+```bash
+./tw-single.ts login --profile /path/to/your/firefox/profile
+```
+
+This will reuse your existing browser session, so you may not need to enter your password.
 
 ## Practical Examples
 
