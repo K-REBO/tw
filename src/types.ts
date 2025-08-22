@@ -23,6 +23,7 @@ export interface GetOptions {
   until?: string;
   limit?: number;
   search?: string;
+  bookmark?: boolean;
   replies?: boolean;
   retweets?: boolean;
   lang?: string;

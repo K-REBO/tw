@@ -25,7 +25,10 @@ export class TwitterScraper {
       let url = "https://x.com/home";
       
       // Build URL based on options
-      if (options.search || (options.from && options.search)) {
+      if (options.bookmark) {
+        // ブックマークページに移動
+        url = "https://x.com/i/bookmarks";
+      } else if (options.search || (options.from && options.search)) {
         // 検索が指定されている場合（fromとの併用も含む）
         const searchParams = new URLSearchParams({
           q: this.buildSearchQuery(options),
@@ -110,9 +113,10 @@ export class TwitterScraper {
       }
       
       const posts: TwitterPost[] = [];
-      const limit = Math.min(options.limit || 10, 100);
+      const limit = options.limit || 10;
       let scrollCount = 0;
-      const maxScrolls = Math.ceil(limit / 10);
+      let noNewPostsCount = 0;
+      const maxScrolls = Math.max(limit, 20); // より多くのスクロールを許可
       
       while (posts.length < limit && scrollCount < maxScrolls) {
         const newPosts = await this.extractPosts(page, options);
@@ -124,11 +128,26 @@ export class TwitterScraper {
         
         posts.push(...uniquePosts);
         
-        if (newPosts.length === 0) break;
+        if (options.debug) {
+          console.log(`🐛 Scroll ${scrollCount + 1}: Found ${newPosts.length} posts, ${uniquePosts.length} unique. Total: ${posts.length}/${limit}`);
+        }
+        
+        if (uniquePosts.length === 0) {
+          noNewPostsCount++;
+          // 連続で3回新しいポストが見つからなかったら終了
+          if (noNewPostsCount >= 3) {
+            if (options.debug) {
+              console.log("🐛 No new posts found after 3 attempts, stopping");
+            }
+            break;
+          }
+        } else {
+          noNewPostsCount = 0; // リセット
+        }
         
         // Scroll to load more tweets
         await page.evaluate(() => (window as any).scrollTo(0, (document as any).body.scrollHeight));
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(1000); // 待機時間を延長
         scrollCount++;
       }
       

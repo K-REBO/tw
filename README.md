@@ -7,48 +7,60 @@ A command-line tool for scraping Twitter posts without using the official API. B
 ## Installation
 
 ```bash
-# Use single file version (recommended)
-chmod +x tw-single.ts
+# Make executable
+chmod +x tw
 
-# Or install modular version globally
-deno task install
+# Or use single file version
+chmod +x tw-single.ts
 ```
 
 ## Basic Usage
 
 ### 1. Login
 ```bash
-./tw-single.ts login
+./tw login
+
+# Show browser window during login
+./tw login --show-browser
+
+# Use existing Firefox profile (automatic if already logged in)
+./tw login --use-profile
 ```
-Firefox browser will open. Log in to Twitter and press Enter when you see your timeline.
+By default, login runs in headless mode. Use `--show-browser` to see the browser window.
 
 ### 2. Get Posts
 ```bash
 # Get latest 10 posts
-./tw-single.ts get
+./tw get
 
 # Get posts from specific user
-./tw-single.ts get --from @username
+./tw get --from @username
 
 # Search by keyword
-./tw-single.ts get --search "TypeScript"
+./tw get --search "TypeScript"
+
+# Get bookmarked posts
+./tw get --bookmark
 
 # Combine user and keyword search
-./tw-single.ts get --from @username --search "keyword"
+./tw get --from @username --search "keyword"
 
 # Output as JSON
-./tw-single.ts get --format json
+./tw get --format json
 
 # Save to file
-./tw-single.ts get --output tweets.json
+./tw get --output tweets.json
 
 # Pipe to jq
-./tw-single.ts get --format json | jq '.[].author.username'
+./tw get --format json | jq '.[].author.username'
+
+# Show browser during scraping (for debugging)
+./tw get --show-browser
 ```
 
 ### 3. Logout
 ```bash
-./tw-single.ts logout
+./tw logout
 ```
 
 ## Main Options
@@ -57,7 +69,7 @@ Firefox browser will open. Log in to Twitter and press Enter when you see your t
 |---|---|---|
 | `--from <user>` | Posts from specific user | - |
 | `--search <keyword>` | Search by keyword | - |
-| `--limit <number>` | Number of posts (max: 100) | 10 |
+| `--limit <number>` | Number of posts (no limit) | 10 |
 | `--since <date>` | Posts since date (YYYY-MM-DD) | - |
 | `--until <date>` | Posts until date (YYYY-MM-DD) | - |
 | `--format <type>` | Output format (table/json) | table |
@@ -66,14 +78,16 @@ Firefox browser will open. Log in to Twitter and press Enter when you see your t
 | `--min-likes <number>` | Minimum like count | 0 |
 | `--verified` | Verified users only | false |
 | `--no-media` | Hide media URLs | false |
+| `--bookmark` | Get bookmarked posts | false |
 
 ## Advanced Options
 
 | Option | Description | Default |
 |---|---|---|
-| `--headless` | Control headless mode. Use `--no-headless` to show browser. | `true` |
-| `--auth-file <path>` | Specify authentication file path. | `./twitter-auth.json` |
-| `--profile <path>` | Use existing Firefox profile for login. | - |
+| `--show-browser` | Show browser window (default: headless) | false |
+| `--auth-file <path>` | Specify authentication file path | `./twitter-auth.json` |
+| `--use-profile` | Use existing Firefox profile for login | false |
+| `--debug` | Show debug information with browser | false |
 
 ### Using a Firefox Profile
 
@@ -86,7 +100,7 @@ If you want to use your existing Firefox profile for login (e.g., to avoid 2FA),
 2.  Run the login command with the profile path.
 
 ```bash
-./tw-single.ts login --profile /path/to/your/firefox/profile
+./tw login --use-profile --show-browser
 ```
 
 This will reuse your existing browser session, so you may not need to enter your password.
@@ -94,17 +108,23 @@ This will reuse your existing browser session, so you may not need to enter your
 ## Practical Examples
 
 ```bash
-# Get AI-related tweets in Japanese
-./tw-single.ts get --search "artificial intelligence" --lang en --limit 20
+# Get AI-related tweets in English
+./tw get --search "artificial intelligence" --lang en --limit 20
 
 # Search high-engagement tweets
-./tw-single.ts get --search "TypeScript" --min-likes 50 --verified
+./tw get --search "TypeScript" --min-likes 50 --verified
 
 # Save tweets from specific period as JSON
-./tw-single.ts get --search "machine learning" --since 2024-01-01 --format json --output ml-tweets.json
+./tw get --search "machine learning" --since 2024-01-01 --format json --output ml-tweets.json
+
+# Get bookmarked posts
+./tw get --bookmark --limit 50 --format json
 
 # Multiple condition filtering
-./tw-single.ts get --from @username --search "keyword" --limit 30
+./tw get --from @username --search "keyword" --limit 30
+
+# Debug mode with browser visible
+./tw get --debug --show-browser --limit 5
 ```
 
 ## Output Examples

@@ -7,48 +7,60 @@ TwitterのAPIを使わずに投稿を取得するコマンドラインツール�
 ## インストール
 
 ```bash
-# 単一ファイル版を使用（推奨）
-chmod +x tw-single.ts
+# 実行可能にする
+chmod +x tw
 
-# または分割版をグローバルインストール
-deno task install
+# または単一ファイル版を使用
+chmod +x tw-single.ts
 ```
 
 ## 基本的な使用方法
 
 ### 1. ログイン
 ```bash
-./tw-single.ts login
+./tw login
+
+# ログイン時にブラウザウィンドウを表示
+./tw login --show-browser
+
+# 既存のFirefoxプロファイルを使用（既にログイン済みの場合は自動）
+./tw login --use-profile
 ```
-Firefoxブラウザが開きます。Twitterにログインしてタイムラインが表示されたらEnterを押してください。
+デフォルトでは、ログインはヘッドレスモードで実行されます。ブラウザウィンドウを表示するには`--show-browser`を使用してください。
 
 ### 2. 投稿取得
 ```bash
 # 最新10件の投稿を取得
-./tw-single.ts get
+./tw get
 
 # 特定ユーザーの投稿
-./tw-single.ts get --from @username
+./tw get --from @username
 
 # キーワード検索
-./tw-single.ts get --search "TypeScript"
+./tw get --search "TypeScript"
+
+# ブックマークした投稿を取得
+./tw get --bookmark
 
 # ユーザー + キーワード検索
-./tw-single.ts get --from @username --search "keyword"
+./tw get --from @username --search "keyword"
 
 # JSON形式で出力
-./tw-single.ts get --format json
+./tw get --format json
 
 # ファイルに保存
-./tw-single.ts get --output tweets.json
+./tw get --output tweets.json
 
 # パイプでjqに渡す
-./tw-single.ts get --format json | jq '.[].author.username'
+./tw get --format json | jq '.[].author.username'
+
+# スクレイピング中にブラウザを表示（デバッグ用）
+./tw get --show-browser
 ```
 
 ### 3. ログアウト
 ```bash
-./tw-single.ts logout
+./tw logout
 ```
 
 ## 主要なオプション
@@ -57,7 +69,7 @@ Firefoxブラウザが開きます。Twitterにログインしてタイムライ
 |---|---|---|
 | `--from <user>` | 特定ユーザーの投稿 | - |
 | `--search <keyword>` | キーワード検索 | - |
-| `--limit <number>` | 取得件数 (最大100) | 10 |
+| `--limit <number>` | 取得件数 (制限なし) | 10 |
 | `--since <date>` | 開始日 (YYYY-MM-DD) | - |
 | `--until <date>` | 終了日 (YYYY-MM-DD) | - |
 | `--format <type>` | 出力形式 (table/json) | table |
@@ -66,14 +78,16 @@ Firefoxブラウザが開きます。Twitterにログインしてタイムライ
 | `--min-likes <number>` | 最低いいね数 | 0 |
 | `--verified` | 認証済みユーザーのみ | false |
 | `--no-media` | メディアURL非表示 | false |
+| `--bookmark` | ブックマーク投稿を取得 | false |
 
 ## 高度なオプション
 
 | オプション | 説明 | デフォルト |
 |---|---|---|
-| `--headless` | ヘッドレスモードを制御。`--no-headless`でブラウザ表示。 | `true` |
-| `--auth-file <path>` | 認証ファイルのパスを指定。 | `./twitter-auth.json` |
-| `--profile <path>` | 既存のFirefoxプロファイルを使用してログイン。 | - |
+| `--show-browser` | ブラウザウィンドウを表示 (デフォルト: ヘッドレス) | false |
+| `--auth-file <path>` | 認証ファイルのパスを指定 | `./twitter-auth.json` |
+| `--use-profile` | 既存のFirefoxプロファイルでログイン | false |
+| `--debug` | デバッグ情報とブラウザを表示 | false |
 
 ### Firefoxプロファイルの使用
 
@@ -86,7 +100,7 @@ Firefoxブラウザが開きます。Twitterにログインしてタイムライ
 2.  プロファイルパスを指定してloginコマンドを実行します。
 
 ```bash
-./tw-single.ts login --profile /path/to/your/firefox/profile
+./tw login --use-profile --show-browser
 ```
 
 これにより既存のブラウザセッションが再利用されるため、パスワードの再入力が不要になる場合があります。
@@ -95,22 +109,28 @@ Firefoxブラウザが開きます。Twitterにログインしてタイムライ
 
 ```bash
 # 日本語のAI関連ツイートを取得
-./tw-single.ts get --search "人工知能" --lang ja --limit 20
+./tw get --search "人工知能" --lang ja --limit 20
 
 # 高エンゲージメントのツイートを検索
-./tw-single.ts get --search "TypeScript" --min-likes 50 --verified
+./tw get --search "TypeScript" --min-likes 50 --verified
 
 # 特定期間のツイートをJSON形式で保存
-./tw-single.ts get --search "機械学習" --since 2024-01-01 --format json --output ml-tweets.json
+./tw get --search "機械学習" --since 2024-01-01 --format json --output ml-tweets.json
 
-# 複数条件での絞り込み
-./tw-single.ts get --from @username --search "keyword" --limit 30
+# ブックマーク投稿を取得
+./tw get --bookmark --limit 50 --format json
 
-# 特定ユーザーの画像付きツイート
-./tw-single.ts get --from @photographer --verbose
+# 複数条件でフィルタリング
+./tw get --from @username --search "キーワード" --limit 30
+
+# デバッグモードでブラウザ表示
+./tw get --debug --show-browser --limit 5
+
+# 特定ユーザーの詳細情報付きツイート
+./tw get --from @photographer --verbose
 
 # 過去1週間の高評価ツイート
-./tw-single.ts get --search "プログラミング" --since 2024-08-05 --min-likes 100
+./tw get --search "プログラミング" --since 2024-08-05 --min-likes 100
 ```
 
 ## 出力例
