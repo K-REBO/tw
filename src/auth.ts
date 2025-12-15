@@ -56,9 +56,12 @@ export class AuthManager {
           // Wait a bit to see if we're already logged in
           await page.waitForURL(/.*x\.com\/home.*/, { timeout: 5000 });
           console.log("✅ Already logged in with existing Firefox profile!");
-          
-          // Extract cookies and save them
-          const cookies = await (context || page.context()).cookies();
+
+          // Extract cookies and save them (only x.com and twitter.com)
+          const allCookies = await (context || page.context()).cookies();
+          const cookies = allCookies.filter(c =>
+            c.domain.includes('x.com') || c.domain.includes('twitter.com')
+          );
           const userAgent = await page.evaluate(() => navigator.userAgent);
           
           const authData: AuthData = {
@@ -102,9 +105,12 @@ export class AuthManager {
           throw new Error("Login may have failed - please check if you're logged in");
         }
       }
-      
-      // Extract cookies and user agent
-      const cookies = await (context || page.context()).cookies();
+
+      // Extract cookies and user agent (only x.com and twitter.com)
+      const allCookies = await (context || page.context()).cookies();
+      const cookies = allCookies.filter(c =>
+        c.domain.includes('x.com') || c.domain.includes('twitter.com')
+      );
       const userAgent = await page.evaluate(() => navigator.userAgent);
       
       const authData: AuthData = {
