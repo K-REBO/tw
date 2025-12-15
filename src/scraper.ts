@@ -19,7 +19,14 @@ export class TwitterScraper {
     try {
       // Load authentication
       const authData = await this.auth.getAuthData();
-      await page.context().addCookies(authData.cookies);
+
+      // Convert cookie expires from milliseconds to seconds for Playwright
+      const cookies = authData.cookies.map(cookie => ({
+        ...cookie,
+        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+      }));
+
+      await page.context().addCookies(cookies);
       await page.setExtraHTTPHeaders({ 'User-Agent': authData.userAgent });
       
       let url = "https://x.com/home";
