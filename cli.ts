@@ -61,7 +61,7 @@ await new Command()
   .option("--bookmark", "Get bookmarked posts", { default: false })
   .option("--replies", "Include replies", { default: false })
   .option("--retweets", "Include retweets", { default: false })
-  .option("--format <type>", "Output format (table|json)", { default: "table" })
+  .option("--format <type>", "Output format (table|json|markdown)", { default: "table" })
   .option("--output <file>", "Save output to file (works with any format)")
   .option("--verbose", "Show additional metadata", { default: false })
   .option("--no-media", "Exclude media URLs", { default: false })
@@ -86,8 +86,8 @@ await new Command()
         console.log("🐛 CLI Options:", JSON.stringify(options, null, 2));
       }
       
-      // JSON出力の場合は余計なメッセージを表示しない
-      if (options.format !== "json") {
+      // JSON/Markdown出力の場合は余計なメッセージを表示しない
+      if (options.format !== "json" && options.format !== "markdown") {
         console.log(colors.blue("🔍 Scraping Twitter posts..."));
       }
       
@@ -99,7 +99,7 @@ await new Command()
         headless: headlessValue
       });
       
-      const output = formatOutput(posts, options.format as "table" | "json", {
+      const output = formatOutput(posts, options.format as "table" | "json" | "markdown", {
         verbose: options.verbose,
         includeMedia: options.media !== false
       });
