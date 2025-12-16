@@ -48,6 +48,9 @@ By default, login runs in headless mode. Use `--show-browser` to see the browser
 # Output as JSON
 ./tw get --format json
 
+# Output as Markdown
+./tw get --format markdown
+
 # Save to file
 ./tw get --output tweets.json
 
@@ -72,7 +75,7 @@ By default, login runs in headless mode. Use `--show-browser` to see the browser
 | `--limit <number>` | Number of posts (no limit) | 10 |
 | `--since <date>` | Posts since date (YYYY-MM-DD) | - |
 | `--until <date>` | Posts until date (YYYY-MM-DD) | - |
-| `--format <type>` | Output format (table/json) | table |
+| `--format <type>` | Output format (table/json/markdown) | table |
 | `--output <file>` | Save to file | - |
 | `--lang <code>` | Language code (ja, en, etc.) | - |
 | `--min-likes <number>` | Minimum like count | 0 |
@@ -123,6 +126,9 @@ This will reuse your existing browser session, so you may not need to enter your
 # Multiple condition filtering
 ./tw get --from @username --search "keyword" --limit 30
 
+# Export bookmarks as Markdown
+./tw get --bookmark --format markdown --output bookmarks.md
+
 # Debug mode with browser visible
 ./tw get --debug --show-browser --limit 5
 ```
@@ -159,6 +165,29 @@ Media 1: https://pbs.twimg.com/media/example.jpg
   "mediaUrls": ["https://pbs.twimg.com/media/example.jpg"],
   "hashtags": ["#example"]
 }]
+```
+
+### Markdown Format
+```markdown
+# Twitter Posts (1 posts)
+
+## 1. [@username](https://x.com/username) ✓
+
+**Display Name**
+
+📅 8/12/2025, 10:30:00 AM | [View Tweet](https://x.com/username/status/username_abc123_hello)
+
+Hello world! #example
+
+### 📊 Engagement
+
+- 💖 Likes: **42**
+- 🔄 Retweets: **7**
+- 💬 Replies: **3**
+
+**Tags:** `#example`
+
+---
 ```
 
 ## Requirements

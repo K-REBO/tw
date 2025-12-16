@@ -48,6 +48,9 @@ chmod +x tw-single.ts
 # JSON形式で出力
 ./tw get --format json
 
+# Markdown形式で出力
+./tw get --format markdown
+
 # ファイルに保存
 ./tw get --output tweets.json
 
@@ -72,7 +75,7 @@ chmod +x tw-single.ts
 | `--limit <number>` | 取得件数 (制限なし) | 10 |
 | `--since <date>` | 開始日 (YYYY-MM-DD) | - |
 | `--until <date>` | 終了日 (YYYY-MM-DD) | - |
-| `--format <type>` | 出力形式 (table/json) | table |
+| `--format <type>` | 出力形式 (table/json/markdown) | table |
 | `--output <file>` | ファイル出力 | - |
 | `--lang <code>` | 言語コード (ja, en等) | - |
 | `--min-likes <number>` | 最低いいね数 | 0 |
@@ -123,6 +126,9 @@ chmod +x tw-single.ts
 # 複数条件でフィルタリング
 ./tw get --from @username --search "キーワード" --limit 30
 
+# ブックマークをMarkdown形式でエクスポート
+./tw get --bookmark --format markdown --output bookmarks.md
+
 # デバッグモードでブラウザ表示
 ./tw get --debug --show-browser --limit 5
 
@@ -166,6 +172,29 @@ Media 1: https://pbs.twimg.com/media/example.jpg
   "mediaUrls": ["https://pbs.twimg.com/media/example.jpg"],
   "hashtags": ["#サンプル"]
 }]
+```
+
+### Markdown形式
+```markdown
+# Twitter Posts (1 posts)
+
+## 1. [@username](https://x.com/username) ✓
+
+**Display Name**
+
+📅 2025/8/12 10:30:00 | [View Tweet](https://x.com/username/status/username_abc123_hello)
+
+こんにちは世界！ #サンプル
+
+### 📊 Engagement
+
+- 💖 Likes: **42**
+- 🔄 Retweets: **7**
+- 💬 Replies: **3**
+
+**Tags:** `#サンプル`
+
+---
 ```
 
 ## 高度な使用例
