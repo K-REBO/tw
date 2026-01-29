@@ -1,57 +1,79 @@
 import type { AuthData } from "./types.ts";
+import { getBrowserConfig, type BrowserType } from "./browser.ts";
 
 export class AuthManager {
   private authFile: string;
-  
+
   constructor(authFilePath?: string) {
     this.authFile = authFilePath || "./twitter-auth.json";
   }
-  
+
   async login(useExistingProfile: boolean = false, headless: boolean = true): Promise<void> {
+    // Get browser configuration
+    const browserConfig = await getBrowserConfig();
+
     // Dynamic import for faster CLI startup
-    const { firefox } = await import("npm:playwright@^1.40.0");
+    const { firefox, chromium } = await import("npm:playwright-core@1.49.1");
+    const browserLauncher = browserConfig.type === "firefox" ? firefox : chromium;
+
     let browser: any;
     let context: any;
     let page: any;
-    
-    if (useExistingProfile) {
+
+    // Profile copying only works for Firefox
+    const canUseProfile = useExistingProfile && browserConfig.type === "firefox";
+
+    if (canUseProfile) {
       // Try to find and use existing Firefox profile
       const profilePath = await this.findFirefoxProfile();
       if (profilePath) {
         console.log(`🦊 Found Firefox profile: ${profilePath}`);
         console.log('📋 Copying profile to temporary location...');
-        
+
         // Create temporary profile directory
         const tempProfile = await Deno.makeTempDir({ prefix: "tw_firefox_" });
-        
+
         // Copy essential profile files
         try {
           await this.copyProfileFiles(profilePath, tempProfile);
-          
+
           context = await firefox.launchPersistentContext(tempProfile, {
-            headless
+            headless,
+            executablePath: browserConfig.executablePath,
           });
           page = context.pages()[0] || await context.newPage();
         } catch (error) {
           console.log('⚠️ Failed to copy profile, using default method');
-          browser = await firefox.launch({ headless });
+          browser = await browserLauncher.launch({
+            headless,
+            executablePath: browserConfig.executablePath,
+          });
           page = await browser.newPage();
         }
       } else {
         console.log('⚠️ No Firefox profile found, using temporary profile');
-        browser = await firefox.launch({ headless });
+        browser = await browserLauncher.launch({
+          headless,
+          executablePath: browserConfig.executablePath,
+        });
         page = await browser.newPage();
       }
     } else {
-      browser = await firefox.launch({ headless });
+      if (useExistingProfile && browserConfig.type === "chromium") {
+        console.log('⚠️ Profile copying is only supported for Firefox, using temporary profile');
+      }
+      browser = await browserLauncher.launch({
+        headless,
+        executablePath: browserConfig.executablePath,
+      });
       page = await browser.newPage();
     }
-    
+
     try {
-      if (useExistingProfile) {
+      if (canUseProfile) {
         // If using existing profile, go directly to Twitter and check if logged in
         await page.goto("https://x.com/home");
-        
+
         try {
           // Wait a bit to see if we're already logged in
           await page.waitForURL(/.*x\.com\/home.*/, { timeout: 5000 });
@@ -59,20 +81,20 @@ export class AuthManager {
 
           // Extract cookies and save them (only x.com and twitter.com)
           const allCookies = await (context || page.context()).cookies();
-          const cookies = allCookies.filter(c =>
+          const cookies = allCookies.filter((c: any) =>
             c.domain.includes('x.com') || c.domain.includes('twitter.com')
           );
           const userAgent = await page.evaluate(() => navigator.userAgent);
-          
+
           const authData: AuthData = {
             cookies,
             userAgent,
             loginTime: new Date().toISOString()
           };
-          
+
           await Deno.writeTextFile(this.authFile, JSON.stringify(authData, null, 2));
           return;
-          
+
         } catch {
           // Not logged in, proceed with manual login
           console.log('🔑 Not logged in, please login manually...');
@@ -81,18 +103,18 @@ export class AuthManager {
       } else {
         await page.goto("https://x.com/login");
       }
-      
+
       console.log("Please complete the login process in the browser...");
       console.log("Press Enter when you're successfully logged in and see your timeline");
-      
+
       // Wait for user input
       const decoder = new TextDecoder();
       const encoder = new TextEncoder();
       await Deno.stdout.write(encoder.encode("Press Enter to continue..."));
-      
+
       const buffer = new Uint8Array(1024);
       await Deno.stdin.read(buffer);
-      
+
       // Wait for timeline to load
       console.log("⏳ Waiting for login completion...");
       try {
@@ -108,19 +130,19 @@ export class AuthManager {
 
       // Extract cookies and user agent (only x.com and twitter.com)
       const allCookies = await (context || page.context()).cookies();
-      const cookies = allCookies.filter(c =>
+      const cookies = allCookies.filter((c: any) =>
         c.domain.includes('x.com') || c.domain.includes('twitter.com')
       );
       const userAgent = await page.evaluate(() => navigator.userAgent);
-      
+
       const authData: AuthData = {
         cookies,
         userAgent,
         loginTime: new Date().toISOString()
       };
-      
+
       await Deno.writeTextFile(this.authFile, JSON.stringify(authData, null, 2));
-      
+
     } catch (error) {
       throw new Error(`Login failed: ${(error as Error).message}`);
     } finally {
@@ -131,7 +153,7 @@ export class AuthManager {
       }
     }
   }
-  
+
   async logout(): Promise<void> {
     try {
       await Deno.remove(this.authFile);
@@ -139,21 +161,21 @@ export class AuthManager {
       // File might not exist
     }
   }
-  
+
   async isLoggedIn(): Promise<boolean> {
     try {
       const authData = await this.getAuthData();
       const loginTime = new Date(authData.loginTime);
       const now = new Date();
       const daysDiff = (now.getTime() - loginTime.getTime()) / (1000 * 3600 * 24);
-      
+
       // Consider session expired after 7 days
       return daysDiff < 7;
     } catch {
       return false;
     }
   }
-  
+
   async getAuthData(): Promise<AuthData> {
     const data = await Deno.readTextFile(this.authFile);
     return JSON.parse(data);
@@ -172,7 +194,7 @@ export class AuthManager {
     for (const basePath of possiblePaths) {
       try {
         const entries = await Array.fromAsync(Deno.readDir(basePath));
-        
+
         // Look for default profiles
         for (const entry of entries) {
           if (entry.isDirectory && (
@@ -182,7 +204,7 @@ export class AuthManager {
             return `${basePath}/${entry.name}`;
           }
         }
-        
+
         // If no default found, use first profile directory
         for (const entry of entries) {
           if (entry.isDirectory && entry.name.includes(".")) {
@@ -202,7 +224,7 @@ export class AuthManager {
     // Copy essential Firefox profile files for login persistence
     const essentialFiles = [
       'cookies.sqlite',
-      'cookies.sqlite-shm', 
+      'cookies.sqlite-shm',
       'cookies.sqlite-wal',
       'sessionstore.jsonlz4',
       'storage.sqlite',

@@ -1,19 +1,33 @@
 import type { TwitterPost, GetOptions } from "./types.ts";
 import { AuthManager } from "./auth.ts";
+import { getBrowserConfig } from "./browser.ts";
 
 export class TwitterScraper {
   private auth: AuthManager;
-  
+
   constructor(authManager?: AuthManager) {
     this.auth = authManager || new AuthManager();
   }
-  
+
   async getPosts(options: GetOptions & { debug?: boolean; headless?: boolean }): Promise<TwitterPost[]> {
+    // Get browser configuration
+    const browserConfig = await getBrowserConfig();
+
+    if (options.debug) {
+      console.log(`🌐 Using browser: ${browserConfig.type}`);
+      console.log(`📍 Executable path: ${browserConfig.executablePath}`);
+    }
+
     // Dynamic import for faster CLI startup
-    const { firefox } = await import("npm:playwright@^1.40.0");
+    const { firefox, chromium } = await import("npm:playwright-core@1.49.1");
+    const browserLauncher = browserConfig.type === "firefox" ? firefox : chromium;
+
     // Simple headless logic: default true, false only for debug or explicit --no-headless
     const headless = options.debug ? false : (options.headless ?? true);
-    const browser = await firefox.launch({ headless });
+    const browser = await browserLauncher.launch({
+      headless,
+      executablePath: browserConfig.executablePath,
+    });
     const page = await browser.newPage();
     
     try {
@@ -168,7 +182,7 @@ export class TwitterScraper {
   }
   
   private async extractPosts(page: any, options: GetOptions & { debug?: boolean }): Promise<TwitterPost[]> {
-    return await page.evaluate((opts) => {
+    return await page.evaluate((opts: { debug?: boolean }) => {
       // Try multiple selectors for tweets
       let tweets = (document as any).querySelectorAll('article[data-testid="tweet"]');
       if (tweets.length === 0) {

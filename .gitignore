@@ -4,7 +4,6 @@ twitter-auth.json
 # Output files
 *.json
 !deno.json
-!package.json
 
 # Deno
 deno.lock

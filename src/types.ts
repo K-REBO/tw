@@ -38,6 +38,7 @@ export interface AuthData {
     value: string;
     domain: string;
     path: string;
+    expires?: number;
   }>;
   userAgent: string;
   loginTime: string;

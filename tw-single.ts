@@ -2,7 +2,7 @@
 
 import { Command } from "https://deno.land/x/cliffy@v1.0.0-rc.4/command/mod.ts";
 import * as colors from "https://deno.land/std@0.224.0/fmt/colors.ts";
-import { firefox, Browser, Page } from "npm:playwright@^1.40.0";
+import { firefox, Browser, Page } from "npm:playwright@1.49.1";
 
 // Types
 interface TwitterPost {
