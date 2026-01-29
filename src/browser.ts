@@ -2,7 +2,7 @@
  * Browser detection module for Firefox and Chromium support
  *
  * Environment variables:
- * - TW_BROWSER: "firefox" (default) or "chromium"
+ * - TW_BROWSER: "chromium" (default) or "firefox"
  * - FIREFOX_PATH: Explicit path to Firefox executable
  * - CHROMIUM_PATH: Explicit path to Chromium executable
  */
@@ -124,8 +124,8 @@ export async function detectBrowser(type: BrowserType): Promise<BrowserDetection
 }
 
 export async function getBrowserConfig(): Promise<BrowserConfig> {
-  const browserEnv = Deno.env.get("TW_BROWSER")?.toLowerCase() || "firefox";
-  const type: BrowserType = browserEnv === "chromium" ? "chromium" : "firefox";
+  const browserEnv = Deno.env.get("TW_BROWSER")?.toLowerCase() || "chromium";
+  const type: BrowserType = browserEnv === "firefox" ? "firefox" : "chromium";
 
   const result = await detectBrowser(type);
 

@@ -11,11 +11,10 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [ pkgs.deno pkgs.firefox-esr pkgs.chromium ];
           shellHook = ''
-            export FIREFOX_PATH="${pkgs.firefox-esr}/bin/firefox"
             export CHROMIUM_PATH="${pkgs.chromium}/bin/chromium"
+            export FIREFOX_PATH="${pkgs.firefox-esr}/bin/firefox"
             export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-            # Default to Firefox (can be overridden with TW_BROWSER)
-            export TW_BROWSER=''${TW_BROWSER:-firefox}
+            export TW_BROWSER=''${TW_BROWSER:-chromium}
           '';
         };
       });
