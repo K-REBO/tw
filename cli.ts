@@ -5,6 +5,7 @@ import * as colors from "https://deno.land/std@0.224.0/fmt/colors.ts";
 import { TwitterScraper } from "./src/scraper.ts";
 import { AuthManager } from "./src/auth.ts";
 import { formatOutput } from "./src/formatter.ts";
+import { InteractiveSession } from "./src/interactive.ts";
 import type { GetOptions } from "./src/types.ts";
 
 // These will be initialized per command with custom auth file path
@@ -52,6 +53,117 @@ await new Command()
     console.log(colors.green("✅ Logged out successfully"));
   })
   
+  .command("interactive", "Start interactive session with persistent browser")
+  .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--show-browser", "Show browser window (default: headless)", { default: false })
+  .action(async (options: any) => {
+    const auth = new AuthManager(options.authFile);
+
+    if (!await auth.isLoggedIn()) {
+      console.error(colors.red("❌ Please login first: tw login"));
+      Deno.exit(1);
+    }
+
+    const session = new InteractiveSession(auth);
+
+    console.log(colors.blue("🚀 Starting interactive session..."));
+    console.log(colors.gray("   Polling login status every 3 minutes"));
+    console.log(colors.gray("   Type 'help' for commands, 'exit' to quit\n"));
+
+    try {
+      await session.start({ headless: !options.showBrowser });
+
+      const username = await session.getUsername();
+      console.log(colors.green(`✅ Logged in as @${username}\n`));
+
+      // Read commands from stdin
+      const decoder = new TextDecoder();
+      const encoder = new TextEncoder();
+
+      while (session.running) {
+        await Deno.stdout.write(encoder.encode(colors.cyan("tw> ")));
+
+        const buf = new Uint8Array(1024);
+        const n = await Deno.stdin.read(buf);
+        if (n === null) break;
+
+        const line = decoder.decode(buf.subarray(0, n)).trim();
+        if (!line) continue;
+
+        const parts = line.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+        const cmd = parts[0]?.toLowerCase();
+        const args = parts.slice(1).map(s => s.replace(/^"|"$/g, ''));
+
+        try {
+          switch (cmd) {
+            case "help":
+              console.log(`
+${colors.bold("Commands:")}
+  post <text>           Post a tweet
+  reply <url> <text>    Reply to a tweet
+  quote <url> <text>    Quote a tweet
+  user                  Show current username
+  exit                  Exit interactive mode
+`);
+              break;
+
+            case "post":
+              if (!args[0]) {
+                console.log(colors.yellow("Usage: post <text>"));
+                break;
+              }
+              console.log(colors.blue("📝 Posting..."));
+              await session.post(args[0]);
+              console.log(colors.green("✅ Posted!"));
+              break;
+
+            case "reply":
+              if (!args[0] || !args[1]) {
+                console.log(colors.yellow("Usage: reply <url> <text>"));
+                break;
+              }
+              console.log(colors.blue("💬 Replying..."));
+              await session.reply(args[0], args[1]);
+              console.log(colors.green("✅ Replied!"));
+              break;
+
+            case "quote":
+              if (!args[0] || !args[1]) {
+                console.log(colors.yellow("Usage: quote <url> <text>"));
+                break;
+              }
+              console.log(colors.blue("🔄 Quoting..."));
+              await session.quote(args[0], args[1]);
+              console.log(colors.green("✅ Quoted!"));
+              break;
+
+            case "user":
+              const currentUser = await session.getUsername();
+              console.log(`@${currentUser}`);
+              break;
+
+            case "exit":
+            case "quit":
+              console.log(colors.blue("👋 Bye!"));
+              await session.close();
+              Deno.exit(0);
+              break;
+
+            default:
+              console.log(colors.yellow(`Unknown command: ${cmd}. Type 'help' for available commands.`));
+          }
+        } catch (error) {
+          console.error(colors.red(`❌ Error: ${(error as Error).message}`));
+        }
+      }
+    } catch (error) {
+      console.error(colors.red("❌ Failed to start session:"), (error as Error).message);
+      Deno.exit(1);
+    } finally {
+      await session.close();
+    }
+  })
+
   .command("user", "Show current logged-in user")
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
   .option("--show-browser", "Show browser window (default: headless)", { default: false })
