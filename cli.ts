@@ -52,6 +52,126 @@ await new Command()
     console.log(colors.green("✅ Logged out successfully"));
   })
   
+  .command("user", "Show current logged-in user")
+  .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--show-browser", "Show browser window (default: headless)", { default: false })
+  .action(async (options: any) => {
+    const auth = new AuthManager(options.authFile);
+    const scraper = new TwitterScraper(auth);
+
+    if (!await auth.isLoggedIn()) {
+      console.error(colors.red("❌ Please login first: tw login"));
+      Deno.exit(1);
+    }
+
+    try {
+      const username = await scraper.getUsername({ headless: !options.showBrowser });
+      console.log(username);
+    } catch (error) {
+      console.error(colors.red("❌ Failed to get username:"), (error as Error).message);
+      Deno.exit(1);
+    }
+  })
+
+  .command("post <text:string>", "Post a tweet")
+  .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--show-browser", "Show browser window (default: headless)", { default: false })
+  .option("--debug", "Show debug information", { default: false })
+  .action(async (options: any, text: string) => {
+    const auth = new AuthManager(options.authFile);
+    const scraper = new TwitterScraper(auth);
+
+    if (!await auth.isLoggedIn()) {
+      console.error(colors.red("❌ Please login first: tw login"));
+      Deno.exit(1);
+    }
+
+    try {
+      console.log(colors.blue("📝 Posting to Twitter..."));
+
+      const result = await scraper.post(text, {
+        debug: options.debug,
+        headless: !options.showBrowser
+      });
+
+      if (result.success) {
+        console.log(colors.green("✅ Posted successfully!"));
+        if (result.url) {
+          console.log(colors.cyan(`🔗 ${result.url}`));
+        }
+      }
+    } catch (error) {
+      console.error(colors.red("❌ Failed to post:"), (error as Error).message);
+      Deno.exit(1);
+    }
+  })
+
+  .command("reply <url:string> <text:string>", "Reply to a tweet")
+  .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--show-browser", "Show browser window (default: headless)", { default: false })
+  .option("--debug", "Show debug information", { default: false })
+  .action(async (options: any, url: string, text: string) => {
+    const auth = new AuthManager(options.authFile);
+    const scraper = new TwitterScraper(auth);
+
+    if (!await auth.isLoggedIn()) {
+      console.error(colors.red("❌ Please login first: tw login"));
+      Deno.exit(1);
+    }
+
+    try {
+      console.log(colors.blue("💬 Replying to tweet..."));
+
+      const result = await scraper.reply(url, text, {
+        debug: options.debug,
+        headless: !options.showBrowser
+      });
+
+      if (result.success) {
+        console.log(colors.green("✅ Replied successfully!"));
+        if (result.url) {
+          console.log(colors.cyan(`🔗 ${result.url}`));
+        }
+      }
+    } catch (error) {
+      console.error(colors.red("❌ Failed to reply:"), (error as Error).message);
+      Deno.exit(1);
+    }
+  })
+
+  .command("quote <url:string> <text:string>", "Quote a tweet")
+  .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--show-browser", "Show browser window (default: headless)", { default: false })
+  .option("--debug", "Show debug information", { default: false })
+  .action(async (options: any, url: string, text: string) => {
+    const auth = new AuthManager(options.authFile);
+    const scraper = new TwitterScraper(auth);
+
+    if (!await auth.isLoggedIn()) {
+      console.error(colors.red("❌ Please login first: tw login"));
+      Deno.exit(1);
+    }
+
+    try {
+      console.log(colors.blue("🔄 Quoting tweet..."));
+
+      const result = await scraper.quote(url, text, {
+        debug: options.debug,
+        headless: !options.showBrowser
+      });
+
+      if (result.success) {
+        console.log(colors.green("✅ Quoted successfully!"));
+        if (result.url) {
+          console.log(colors.cyan(`🔗 ${result.url}`));
+        }
+      }
+    } catch (error) {
+      console.error(colors.red("❌ Failed to quote:"), (error as Error).message);
+      Deno.exit(1);
+    }
+  })
+
   .command("get", "Get Twitter posts")
   .option("--from <username>", "Posts from specific user")
   .option("--since <date>", "Posts since date (YYYY-MM-DD)")

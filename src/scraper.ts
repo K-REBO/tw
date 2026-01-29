@@ -381,19 +381,446 @@ export class TwitterScraper {
     if (!options.retweets && post.isRetweet) return false;
     if (options.verified && !post.author.verified) return false;
     if (options.minLikes && post.likes < options.minLikes) return false;
-    
+
     if (options.since) {
       const sinceDate = new Date(options.since);
       const postDate = new Date(post.timestamp);
       if (postDate < sinceDate) return false;
     }
-    
+
     if (options.until) {
       const untilDate = new Date(options.until);
       const postDate = new Date(post.timestamp);
       if (postDate > untilDate) return false;
     }
-    
+
     return true;
+  }
+
+  async getUsername(options: { headless?: boolean } = {}): Promise<string> {
+    const browserConfig = await getBrowserConfig();
+
+    const { firefox, chromium } = await import("npm:playwright-core@1.49.1");
+    const browserLauncher = browserConfig.type === "firefox" ? firefox : chromium;
+
+    const browser = await browserLauncher.launch({
+      headless: options.headless ?? true,
+      executablePath: browserConfig.executablePath,
+    });
+    const page = await browser.newPage();
+
+    try {
+      const authData = await this.auth.getAuthData();
+
+      const cookies = authData.cookies.map(cookie => ({
+        ...cookie,
+        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+      }));
+
+      await page.context().addCookies(cookies);
+      await page.setExtraHTTPHeaders({ 'User-Agent': authData.userAgent });
+
+      await page.goto("https://x.com/home", { waitUntil: "domcontentloaded", timeout: 15000 });
+      await page.waitForTimeout(2000);
+
+      if (page.url().includes("/login") || page.url().includes("/i/flow/login")) {
+        throw new Error("Not logged in");
+      }
+
+      // Find the profile link in the sidebar
+      const username = await page.evaluate(() => {
+        // Try to find the username from the sidebar profile link
+        const profileLink = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+        if (profileLink) {
+          const href = profileLink.getAttribute('href');
+          if (href) {
+            return href.replace('/', '');
+          }
+        }
+        // Fallback: look for the account switcher
+        const accountSwitcher = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+        if (accountSwitcher) {
+          const spans = accountSwitcher.querySelectorAll('span');
+          for (const span of spans) {
+            const text = span.textContent || '';
+            if (text.startsWith('@')) {
+              return text.slice(1);
+            }
+          }
+        }
+        return null;
+      });
+
+      if (!username) {
+        throw new Error("Could not find username");
+      }
+
+      return username;
+
+    } finally {
+      await browser.close();
+    }
+  }
+
+  async quote(tweetUrl: string, text: string, options: { debug?: boolean; headless?: boolean } = {}): Promise<{ success: boolean; url?: string }> {
+    const browserConfig = await getBrowserConfig();
+
+    if (options.debug) {
+      console.log(`🌐 Using browser: ${browserConfig.type}`);
+    }
+
+    const { firefox, chromium } = await import("npm:playwright-core@1.49.1");
+    const browserLauncher = browserConfig.type === "firefox" ? firefox : chromium;
+
+    const headless = options.debug ? false : (options.headless ?? true);
+    const browser = await browserLauncher.launch({
+      headless,
+      executablePath: browserConfig.executablePath,
+    });
+    const page = await browser.newPage();
+
+    try {
+      const authData = await this.auth.getAuthData();
+
+      const cookies = authData.cookies.map(cookie => ({
+        ...cookie,
+        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+      }));
+
+      await page.context().addCookies(cookies);
+      await page.setExtraHTTPHeaders({ 'User-Agent': authData.userAgent });
+
+      const normalizedUrl = tweetUrl.replace('twitter.com', 'x.com');
+
+      if (options.debug) {
+        console.log("🔍 Navigating to tweet:", normalizedUrl);
+      }
+
+      await page.goto(normalizedUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
+      await page.waitForTimeout(2000);
+
+      if (page.url().includes("/login") || page.url().includes("/i/flow/login")) {
+        throw new Error("Not logged in - redirected to login page");
+      }
+
+      // Click the retweet button
+      const retweetButtonSelector = '[data-testid="retweet"]';
+      await page.waitForSelector(retweetButtonSelector, { timeout: 10000 });
+
+      if (options.debug) {
+        console.log("🔍 Clicking retweet button...");
+      }
+
+      await page.click(retweetButtonSelector);
+      await page.waitForTimeout(1000);
+
+      // Click "Quote" option in the menu
+      if (options.debug) {
+        console.log("🔍 Looking for quote option...");
+      }
+
+      // Try multiple selectors for the quote option
+      const quoteSelectors = [
+        '[data-testid="Dropdown"] a[href*="/compose/post"]',
+        '[role="menuitem"] a[href*="/compose/post"]',
+        'a[href*="/compose/post"]',
+      ];
+
+      let clicked = false;
+      for (const selector of quoteSelectors) {
+        try {
+          const element = await page.waitForSelector(selector, { timeout: 3000 });
+          if (element) {
+            await element.click();
+            clicked = true;
+            if (options.debug) {
+              console.log(`🔍 Clicked quote with selector: ${selector}`);
+            }
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (!clicked) {
+        throw new Error("Could not find quote option in menu");
+      }
+
+      await page.waitForTimeout(2000);
+
+      // Wait for the quote modal/textarea - try multiple selectors
+      const textboxSelectors = [
+        '[data-testid="tweetTextarea_0"]',
+        '[data-testid="tweetTextarea_0RichTextInputContainer"]',
+        '[role="textbox"]',
+        '.public-DraftEditor-content',
+      ];
+
+      let textbox = null;
+      for (const selector of textboxSelectors) {
+        try {
+          textbox = await page.waitForSelector(selector, { timeout: 3000 });
+          if (textbox) {
+            if (options.debug) {
+              console.log(`🔍 Found textbox with selector: ${selector}`);
+            }
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (!textbox) {
+        throw new Error("Could not find text input for quote");
+      }
+
+      if (options.debug) {
+        console.log("🔍 Typing quote text...");
+      }
+
+      await textbox.click();
+      await page.keyboard.type(text, { delay: 50 });
+      await page.waitForTimeout(500);
+
+      // Click the post button
+      const postButtonSelectors = [
+        '[data-testid="tweetButton"]',
+        '[data-testid="tweetButtonInline"]',
+        'button[type="button"] span:has-text("Post")',
+      ];
+
+      let postButton = null;
+      for (const selector of postButtonSelectors) {
+        try {
+          postButton = await page.waitForSelector(selector, { timeout: 3000 });
+          if (postButton) {
+            if (options.debug) {
+              console.log(`🔍 Found post button with selector: ${selector}`);
+            }
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (!postButton) {
+        throw new Error("Could not find post button");
+      }
+
+      if (options.debug) {
+        console.log("🔍 Clicking post button...");
+      }
+
+      await postButton.click();
+      await page.waitForTimeout(3000);
+
+      return { success: true };
+
+    } catch (error) {
+      if (options.debug) {
+        console.error("🐛 Quote error:", error);
+      }
+      throw new Error(`Failed to quote: ${(error as Error).message}`);
+    } finally {
+      await browser.close();
+    }
+  }
+
+  async reply(tweetUrl: string, text: string, options: { debug?: boolean; headless?: boolean } = {}): Promise<{ success: boolean; url?: string }> {
+    const browserConfig = await getBrowserConfig();
+
+    if (options.debug) {
+      console.log(`🌐 Using browser: ${browserConfig.type}`);
+    }
+
+    const { firefox, chromium } = await import("npm:playwright-core@1.49.1");
+    const browserLauncher = browserConfig.type === "firefox" ? firefox : chromium;
+
+    const headless = options.debug ? false : (options.headless ?? true);
+    const browser = await browserLauncher.launch({
+      headless,
+      executablePath: browserConfig.executablePath,
+    });
+    const page = await browser.newPage();
+
+    try {
+      const authData = await this.auth.getAuthData();
+
+      const cookies = authData.cookies.map(cookie => ({
+        ...cookie,
+        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+      }));
+
+      await page.context().addCookies(cookies);
+      await page.setExtraHTTPHeaders({ 'User-Agent': authData.userAgent });
+
+      // Normalize URL
+      const normalizedUrl = tweetUrl.replace('twitter.com', 'x.com');
+
+      if (options.debug) {
+        console.log("🔍 Navigating to tweet:", normalizedUrl);
+      }
+
+      await page.goto(normalizedUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
+      await page.waitForTimeout(2000);
+
+      if (page.url().includes("/login") || page.url().includes("/i/flow/login")) {
+        throw new Error("Not logged in - redirected to login page");
+      }
+
+      // Click the reply button on the tweet
+      const replyButtonSelector = '[data-testid="reply"]';
+      await page.waitForSelector(replyButtonSelector, { timeout: 10000 });
+
+      if (options.debug) {
+        console.log("🔍 Clicking reply button...");
+      }
+
+      await page.click(replyButtonSelector);
+      await page.waitForTimeout(1000);
+
+      // Wait for the reply modal/textarea
+      const textboxSelector = '[data-testid="tweetTextarea_0"]';
+      await page.waitForSelector(textboxSelector, { timeout: 10000 });
+
+      if (options.debug) {
+        console.log("🔍 Typing reply...");
+      }
+
+      await page.click(textboxSelector);
+      await page.keyboard.type(text, { delay: 50 });
+      await page.waitForTimeout(500);
+
+      // Click the reply/post button
+      const postButtonSelector = '[data-testid="tweetButton"]';
+      await page.waitForSelector(postButtonSelector, { timeout: 5000 });
+
+      if (options.debug) {
+        console.log("🔍 Clicking post button...");
+      }
+
+      await page.click(postButtonSelector);
+      await page.waitForTimeout(3000);
+
+      return { success: true };
+
+    } catch (error) {
+      if (options.debug) {
+        console.error("🐛 Reply error:", error);
+      }
+      throw new Error(`Failed to reply: ${(error as Error).message}`);
+    } finally {
+      await browser.close();
+    }
+  }
+
+  async post(text: string, options: { debug?: boolean; headless?: boolean } = {}): Promise<{ success: boolean; url?: string }> {
+    const browserConfig = await getBrowserConfig();
+
+    if (options.debug) {
+      console.log(`🌐 Using browser: ${browserConfig.type}`);
+      console.log(`📍 Executable path: ${browserConfig.executablePath}`);
+    }
+
+    const { firefox, chromium } = await import("npm:playwright-core@1.49.1");
+    const browserLauncher = browserConfig.type === "firefox" ? firefox : chromium;
+
+    const headless = options.debug ? false : (options.headless ?? true);
+    const browser = await browserLauncher.launch({
+      headless,
+      executablePath: browserConfig.executablePath,
+    });
+    const page = await browser.newPage();
+
+    try {
+      const authData = await this.auth.getAuthData();
+
+      const cookies = authData.cookies.map(cookie => ({
+        ...cookie,
+        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+      }));
+
+      await page.context().addCookies(cookies);
+      await page.setExtraHTTPHeaders({ 'User-Agent': authData.userAgent });
+
+      if (options.debug) {
+        console.log("🔍 Navigating to x.com/compose/post");
+      }
+
+      // Go to compose page directly
+      await page.goto("https://x.com/compose/post", { waitUntil: "domcontentloaded", timeout: 15000 });
+      await page.waitForTimeout(2000);
+
+      // Check if redirected to login
+      if (page.url().includes("/login") || page.url().includes("/i/flow/login")) {
+        throw new Error("Not logged in - redirected to login page");
+      }
+
+      if (options.debug) {
+        console.log("🔍 Current URL:", page.url());
+      }
+
+      // Wait for the text input area
+      const textboxSelector = '[data-testid="tweetTextarea_0"]';
+      await page.waitForSelector(textboxSelector, { timeout: 10000 });
+
+      if (options.debug) {
+        console.log("🔍 Found text input, typing...");
+      }
+
+      // Type the post text
+      await page.click(textboxSelector);
+      await page.keyboard.type(text, { delay: 50 });
+
+      await page.waitForTimeout(500);
+
+      // Click the post button
+      const postButtonSelector = '[data-testid="tweetButton"]';
+      await page.waitForSelector(postButtonSelector, { timeout: 5000 });
+
+      if (options.debug) {
+        console.log("🔍 Clicking post button...");
+      }
+
+      await page.click(postButtonSelector);
+
+      // Wait for the post to be submitted
+      await page.waitForTimeout(3000);
+
+      // Try to get the URL of the new post
+      let postUrl: string | undefined;
+      try {
+        // After posting, we might be redirected or a toast appears
+        // Check if we're on the home page now
+        const currentUrl = page.url();
+        if (options.debug) {
+          console.log("🔍 URL after posting:", currentUrl);
+        }
+
+        // Try to find the newly posted tweet
+        const newPostLink = await page.locator('article[data-testid="tweet"] a[href*="/status/"]').first();
+        if (await newPostLink.isVisible({ timeout: 3000 })) {
+          postUrl = await newPostLink.getAttribute('href');
+          if (postUrl && !postUrl.startsWith('http')) {
+            postUrl = `https://x.com${postUrl}`;
+          }
+        }
+      } catch {
+        // Couldn't get the post URL, but post might still have succeeded
+      }
+
+      return { success: true, url: postUrl };
+
+    } catch (error) {
+      if (options.debug) {
+        console.error("🐛 Post error:", error);
+      }
+      throw new Error(`Failed to post: ${(error as Error).message}`);
+    } finally {
+      await browser.close();
+    }
   }
 }
