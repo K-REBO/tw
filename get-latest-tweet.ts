@@ -55,7 +55,7 @@ async function getLatestTweet(username: string, debug = false): Promise<TweetInf
     }
 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(6000);
 
     if (page.url().includes("/login") || page.url().includes("/i/flow/login")) {
       throw new Error("Not logged in - redirected to login page");
