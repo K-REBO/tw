@@ -9,7 +9,7 @@
  *   ./copy-firefox-cookies.ts
  */
 
-import { DB } from "https://deno.land/x/sqlite@v3.9.1/mod.ts";
+import { Database } from "jsr:@db/sqlite@0.12";
 import { parse as parseIni } from "https://deno.land/std@0.224.0/ini/mod.ts";
 
 interface FirefoxCookie {
@@ -89,15 +89,36 @@ function getFirefoxProfilePath(): string {
 
 function copyCookiesDb(profilePath: string): string {
   // Firefox locks cookies.sqlite, so we need to copy it
+  // Also copy WAL files if they exist (Firefox uses WAL mode)
   const originalPath = `${profilePath}/cookies.sqlite`;
-  const tempPath = `/tmp/firefox-cookies-${Date.now()}.sqlite`;
+  const timestamp = Date.now();
+  const tempPath = `/tmp/firefox-cookies-${timestamp}.sqlite`;
 
   Deno.copyFileSync(originalPath, tempPath);
+
+  // Copy WAL and SHM files if they exist
+  const walPath = `${profilePath}/cookies.sqlite-wal`;
+  const shmPath = `${profilePath}/cookies.sqlite-shm`;
+  const tempWalPath = `/tmp/firefox-cookies-${timestamp}.sqlite-wal`;
+  const tempShmPath = `/tmp/firefox-cookies-${timestamp}.sqlite-shm`;
+
+  try {
+    Deno.copyFileSync(walPath, tempWalPath);
+  } catch {
+    // WAL file might not exist
+  }
+
+  try {
+    Deno.copyFileSync(shmPath, tempShmPath);
+  } catch {
+    // SHM file might not exist
+  }
+
   return tempPath;
 }
 
 function getTwitterCookies(dbPath: string): FirefoxCookie[] {
-  const db = new DB(dbPath);
+  const db = new Database(dbPath, { readonly: true });
 
   try {
     const cookies: FirefoxCookie[] = [];
@@ -109,17 +130,17 @@ function getTwitterCookies(dbPath: string): FirefoxCookie[] {
       WHERE host LIKE '%x.com' OR host LIKE '%twitter.com'
     `;
 
-    for (const row of db.query<[string, string, string, string, number, number, number, number]>(query)) {
-      const [name, value, host, path, expiry, isSecure, isHttpOnly, sameSite] = row;
+    const stmt = db.prepare(query);
+    for (const row of stmt.all<{ name: string; value: string; host: string; path: string; expiry: number; isSecure: number; isHttpOnly: number; sameSite: number }>()) {
       cookies.push({
-        name,
-        value,
-        domain: host,
-        path,
-        expiry,
-        isSecure: isSecure === 1,
-        isHttpOnly: isHttpOnly === 1,
-        sameSite: sameSite === 2 ? "Strict" : sameSite === 1 ? "Lax" : "None",
+        name: row.name,
+        value: row.value,
+        domain: row.host,
+        path: row.path,
+        expiry: row.expiry,
+        isSecure: row.isSecure === 1,
+        isHttpOnly: row.isHttpOnly === 1,
+        sameSite: row.sameSite === 2 ? "Strict" : row.sameSite === 1 ? "Lax" : "None",
       });
     }
 
@@ -130,16 +151,50 @@ function getTwitterCookies(dbPath: string): FirefoxCookie[] {
 }
 
 function convertToPlaywrightFormat(cookies: FirefoxCookie[]): PlaywrightCookie[] {
-  return cookies.map((cookie) => ({
-    name: cookie.name,
-    value: cookie.value,
-    domain: cookie.domain,
-    path: cookie.path,
-    expires: cookie.expiry * 1000, // Convert to milliseconds
-    httpOnly: cookie.isHttpOnly,
-    secure: cookie.isSecure,
-    sameSite: cookie.sameSite as "Strict" | "Lax" | "None",
-  }));
+  const result: PlaywrightCookie[] = [];
+  const now = Math.floor(Date.now() / 1000);
+  // Default expiry: 1 year from now
+  const defaultExpiry = now + 365 * 24 * 60 * 60;
+
+  for (const cookie of cookies) {
+    // Firefox stores expiry in a format that may not be standard Unix timestamp
+    // For important auth cookies, use a future expiry date
+    // For session cookies (expiry <= 0), use -1
+    let expires: number;
+    if (cookie.expiry <= 0) {
+      expires = -1; // Session cookie
+    } else if (cookie.expiry < now) {
+      // If expiry appears to be in the past (Firefox format issue), use default
+      expires = defaultExpiry;
+    } else {
+      expires = cookie.expiry;
+    }
+
+    const baseCookie = {
+      name: cookie.name,
+      value: cookie.value,
+      path: cookie.path,
+      expires,
+      httpOnly: cookie.isHttpOnly,
+      secure: cookie.isSecure,
+      sameSite: cookie.sameSite as "Strict" | "Lax" | "None",
+    };
+
+    // Add cookie with original domain
+    result.push({ ...baseCookie, domain: cookie.domain });
+
+    // Also add cookies for both x.com and twitter.com domains
+    // to ensure compatibility during Twitter's domain migration
+    if (cookie.domain.includes("twitter.com")) {
+      const xDomain = cookie.domain.replace("twitter.com", "x.com");
+      result.push({ ...baseCookie, domain: xDomain });
+    } else if (cookie.domain.includes("x.com")) {
+      const twitterDomain = cookie.domain.replace("x.com", "twitter.com");
+      result.push({ ...baseCookie, domain: twitterDomain });
+    }
+  }
+
+  return result;
 }
 
 function main() {
@@ -189,11 +244,18 @@ function main() {
     }
 
   } finally {
-    // Clean up temp file
-    try {
-      Deno.removeSync(tempDbPath);
-    } catch {
-      // Ignore cleanup errors
+    // Clean up temp files
+    const filesToClean = [
+      tempDbPath,
+      tempDbPath + "-wal",
+      tempDbPath + "-shm",
+    ];
+    for (const file of filesToClean) {
+      try {
+        Deno.removeSync(file);
+      } catch {
+        // Ignore cleanup errors
+      }
     }
   }
 }

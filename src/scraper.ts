@@ -37,7 +37,7 @@ export class TwitterScraper {
       // Convert cookie expires from milliseconds to seconds for Playwright
       const cookies = authData.cookies.map(cookie => ({
         ...cookie,
-        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+        expires: cookie.expires ?? -1
       }));
 
       await page.context().addCookies(cookies);
@@ -414,7 +414,7 @@ export class TwitterScraper {
 
       const cookies = authData.cookies.map(cookie => ({
         ...cookie,
-        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+        expires: cookie.expires ?? -1
       }));
 
       await page.context().addCookies(cookies);
@@ -484,7 +484,7 @@ export class TwitterScraper {
 
       const cookies = authData.cookies.map(cookie => ({
         ...cookie,
-        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+        expires: cookie.expires ?? -1
       }));
 
       await page.context().addCookies(cookies);
@@ -651,7 +651,7 @@ export class TwitterScraper {
 
       const cookies = authData.cookies.map(cookie => ({
         ...cookie,
-        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+        expires: cookie.expires ?? -1
       }));
 
       await page.context().addCookies(cookies);
@@ -740,7 +740,7 @@ export class TwitterScraper {
 
       const cookies = authData.cookies.map(cookie => ({
         ...cookie,
-        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+        expires: cookie.expires ?? -1
       }));
 
       await page.context().addCookies(cookies);

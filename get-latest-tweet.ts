@@ -5,13 +5,21 @@
  *
  * 使用方法:
  *   ./get-latest-tweet.ts <username>
- *   ./get-latest-tweet.ts elonmusk
+ *   ./get-latest-tweet.ts <username> --created    # 作成日時も表示
+ *   ./get-latest-tweet.ts <username> --json       # JSON形式で出力
+ *   ./get-latest-tweet.ts elonmusk --debug
  */
 
 import { AuthManager } from "./src/auth.ts";
 import { getBrowserConfig } from "./src/browser.ts";
 
-async function getLatestTweetUrl(username: string, debug = false): Promise<string | null> {
+interface TweetInfo {
+  url: string;
+  created?: string;
+  createdTimestamp?: number;
+}
+
+async function getLatestTweet(username: string, debug = false): Promise<TweetInfo | null> {
   const auth = new AuthManager();
   const browserConfig = await getBrowserConfig();
 
@@ -33,7 +41,7 @@ async function getLatestTweetUrl(username: string, debug = false): Promise<strin
 
     const cookies = authData.cookies.map(cookie => ({
       ...cookie,
-      expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+      expires: cookie.expires ?? -1
     }));
 
     await page.context().addCookies(cookies);
@@ -54,7 +62,7 @@ async function getLatestTweetUrl(username: string, debug = false): Promise<strin
     }
 
     // Find the first non-pinned, non-reply tweet
-    const tweetUrl = await page.evaluate((targetUsername: string) => {
+    const tweetInfo = await page.evaluate((targetUsername: string) => {
       const tweets = document.querySelectorAll('article[data-testid="tweet"]');
 
       for (const tweet of tweets) {
@@ -78,38 +86,97 @@ async function getLatestTweetUrl(username: string, debug = false): Promise<strin
 
         // Find the tweet link (contains /status/)
         const links = tweet.querySelectorAll('a[href*="/status/"]');
+        let tweetUrl: string | null = null;
         for (const link of links) {
           const href = link.getAttribute('href');
           if (href && href.includes(`/${targetUsername}/status/`)) {
-            return `https://x.com${href}`;
+            tweetUrl = `https://x.com${href}`;
+            break;
           }
         }
+
+        if (!tweetUrl) continue;
+
+        // Find the timestamp
+        let created: string | undefined;
+        let createdTimestamp: number | undefined;
+        const timeElement = tweet.querySelector('time');
+        if (timeElement) {
+          const datetime = timeElement.getAttribute('datetime');
+          if (datetime) {
+            created = datetime;
+            createdTimestamp = new Date(datetime).getTime();
+          }
+        }
+
+        return {
+          url: tweetUrl,
+          created,
+          createdTimestamp,
+        };
       }
 
       return null;
     }, cleanUsername);
 
-    return tweetUrl;
+    return tweetInfo;
 
   } finally {
     await browser.close();
   }
 }
 
-async function main() {
-  const username = Deno.args[0];
-  const debug = Deno.args.includes('--debug');
+interface Options {
+  username: string;
+  debug: boolean;
+  json: boolean;
+  created: boolean;
+}
 
-  if (!username || username.startsWith('--')) {
-    console.error("使用方法: ./get-latest-tweet.ts <username> [--debug]");
+function parseArgs(): Options {
+  const args = Deno.args;
+
+  const options: Options = {
+    username: '',
+    debug: false,
+    json: false,
+    created: false,
+  };
+
+  for (const arg of args) {
+    if (arg === '--debug') {
+      options.debug = true;
+    } else if (arg === '--json') {
+      options.json = true;
+    } else if (arg === '--created') {
+      options.created = true;
+    } else if (!arg.startsWith('--')) {
+      options.username = arg;
+    }
+  }
+
+  return options;
+}
+
+async function main() {
+  const options = parseArgs();
+
+  if (!options.username) {
+    console.error("使用方法: ./get-latest-tweet.ts <username> [--created] [--json] [--debug]");
     Deno.exit(1);
   }
 
   try {
-    const url = await getLatestTweetUrl(username, debug);
+    const tweet = await getLatestTweet(options.username, options.debug);
 
-    if (url) {
-      console.log(url);
+    if (tweet) {
+      if (options.json) {
+        console.log(JSON.stringify(tweet, null, 2));
+      } else if (options.created) {
+        console.log(`${tweet.url}\t${tweet.created || 'unknown'}`);
+      } else {
+        console.log(tweet.url);
+      }
     } else {
       console.error("❌ ツイートが見つかりませんでした");
       Deno.exit(1);

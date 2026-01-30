@@ -44,7 +44,7 @@ async function getFollowList(
 
     const cookies = authData.cookies.map(cookie => ({
       ...cookie,
-      expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+      expires: cookie.expires ?? -1
     }));
 
     await page.context().addCookies(cookies);

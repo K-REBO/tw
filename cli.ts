@@ -6,6 +6,7 @@ import { TwitterScraper } from "./src/scraper.ts";
 import { AuthManager } from "./src/auth.ts";
 import { formatOutput } from "./src/formatter.ts";
 import { InteractiveSession } from "./src/interactive.ts";
+import { TwitterAPI } from "./src/api.ts";
 import type { GetOptions } from "./src/types.ts";
 
 // These will be initialized per command with custom auth file path
@@ -55,6 +56,7 @@ await new Command()
   
   .command("interactive", "Start interactive session with persistent browser")
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--api", "Use API directly (faster, no browser)", { default: false })
   .option("--show-browser", "Show browser window (default: headless)", { default: false })
   .action(async (options: any) => {
     const auth = new AuthManager(options.authFile);
@@ -64,10 +66,14 @@ await new Command()
       Deno.exit(1);
     }
 
-    const session = new InteractiveSession(auth);
+    const session = new InteractiveSession(auth, { useApi: options.api });
 
     console.log(colors.blue("🚀 Starting interactive session..."));
-    console.log(colors.gray("   Polling login status every 3 minutes"));
+    if (!options.api) {
+      console.log(colors.gray("   Polling login status every 3 minutes"));
+    } else {
+      console.log(colors.gray("   Using API mode (no browser)"));
+    }
     console.log(colors.gray("   Type 'help' for commands, 'exit' to quit\n"));
 
     try {
@@ -187,11 +193,11 @@ ${colors.bold("Commands:")}
 
   .command("post <text:string>", "Post a tweet")
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--api", "Use API directly (faster)", { default: false })
   .option("--show-browser", "Show browser window (default: headless)", { default: false })
   .option("--debug", "Show debug information", { default: false })
   .action(async (options: any, text: string) => {
     const auth = new AuthManager(options.authFile);
-    const scraper = new TwitterScraper(auth);
 
     if (!await auth.isLoggedIn()) {
       console.error(colors.red("❌ Please login first: tw login"));
@@ -201,15 +207,31 @@ ${colors.bold("Commands:")}
     try {
       console.log(colors.blue("📝 Posting to Twitter..."));
 
-      const result = await scraper.post(text, {
-        debug: options.debug,
-        headless: !options.showBrowser
-      });
+      if (options.api) {
+        const authData = await auth.getAuthData();
+        const api = new TwitterAPI(authData);
+        const result = await api.post(text);
 
-      if (result.success) {
-        console.log(colors.green("✅ Posted successfully!"));
-        if (result.url) {
-          console.log(colors.cyan(`🔗 ${result.url}`));
+        if (result.success) {
+          console.log(colors.green("✅ Posted successfully!"));
+          if (result.tweetId) {
+            console.log(colors.cyan(`🔗 https://x.com/i/status/${result.tweetId}`));
+          }
+        } else {
+          throw new Error(result.error || "Unknown error");
+        }
+      } else {
+        const scraper = new TwitterScraper(auth);
+        const result = await scraper.post(text, {
+          debug: options.debug,
+          headless: !options.showBrowser
+        });
+
+        if (result.success) {
+          console.log(colors.green("✅ Posted successfully!"));
+          if (result.url) {
+            console.log(colors.cyan(`🔗 ${result.url}`));
+          }
         }
       }
     } catch (error) {
@@ -220,11 +242,11 @@ ${colors.bold("Commands:")}
 
   .command("reply <url:string> <text:string>", "Reply to a tweet")
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--api", "Use API directly (faster)", { default: false })
   .option("--show-browser", "Show browser window (default: headless)", { default: false })
   .option("--debug", "Show debug information", { default: false })
   .action(async (options: any, url: string, text: string) => {
     const auth = new AuthManager(options.authFile);
-    const scraper = new TwitterScraper(auth);
 
     if (!await auth.isLoggedIn()) {
       console.error(colors.red("❌ Please login first: tw login"));
@@ -234,15 +256,36 @@ ${colors.bold("Commands:")}
     try {
       console.log(colors.blue("💬 Replying to tweet..."));
 
-      const result = await scraper.reply(url, text, {
-        debug: options.debug,
-        headless: !options.showBrowser
-      });
+      if (options.api) {
+        const tweetId = TwitterAPI.extractTweetId(url);
+        if (!tweetId) {
+          throw new Error("Invalid tweet URL: could not extract tweet ID");
+        }
 
-      if (result.success) {
-        console.log(colors.green("✅ Replied successfully!"));
-        if (result.url) {
-          console.log(colors.cyan(`🔗 ${result.url}`));
+        const authData = await auth.getAuthData();
+        const api = new TwitterAPI(authData);
+        const result = await api.reply(tweetId, text);
+
+        if (result.success) {
+          console.log(colors.green("✅ Replied successfully!"));
+          if (result.tweetId) {
+            console.log(colors.cyan(`🔗 https://x.com/i/status/${result.tweetId}`));
+          }
+        } else {
+          throw new Error(result.error || "Unknown error");
+        }
+      } else {
+        const scraper = new TwitterScraper(auth);
+        const result = await scraper.reply(url, text, {
+          debug: options.debug,
+          headless: !options.showBrowser
+        });
+
+        if (result.success) {
+          console.log(colors.green("✅ Replied successfully!"));
+          if (result.url) {
+            console.log(colors.cyan(`🔗 ${result.url}`));
+          }
         }
       }
     } catch (error) {
@@ -253,11 +296,11 @@ ${colors.bold("Commands:")}
 
   .command("quote <url:string> <text:string>", "Quote a tweet")
   .option("--auth-file <path>", "Custom path for twitter-auth.json", { default: "./twitter-auth.json" })
+  .option("--api", "Use API directly (faster)", { default: false })
   .option("--show-browser", "Show browser window (default: headless)", { default: false })
   .option("--debug", "Show debug information", { default: false })
   .action(async (options: any, url: string, text: string) => {
     const auth = new AuthManager(options.authFile);
-    const scraper = new TwitterScraper(auth);
 
     if (!await auth.isLoggedIn()) {
       console.error(colors.red("❌ Please login first: tw login"));
@@ -267,15 +310,31 @@ ${colors.bold("Commands:")}
     try {
       console.log(colors.blue("🔄 Quoting tweet..."));
 
-      const result = await scraper.quote(url, text, {
-        debug: options.debug,
-        headless: !options.showBrowser
-      });
+      if (options.api) {
+        const authData = await auth.getAuthData();
+        const api = new TwitterAPI(authData);
+        const result = await api.quote(url, text);
 
-      if (result.success) {
-        console.log(colors.green("✅ Quoted successfully!"));
-        if (result.url) {
-          console.log(colors.cyan(`🔗 ${result.url}`));
+        if (result.success) {
+          console.log(colors.green("✅ Quoted successfully!"));
+          if (result.tweetId) {
+            console.log(colors.cyan(`🔗 https://x.com/i/status/${result.tweetId}`));
+          }
+        } else {
+          throw new Error(result.error || "Unknown error");
+        }
+      } else {
+        const scraper = new TwitterScraper(auth);
+        const result = await scraper.quote(url, text, {
+          debug: options.debug,
+          headless: !options.showBrowser
+        });
+
+        if (result.success) {
+          console.log(colors.green("✅ Quoted successfully!"));
+          if (result.url) {
+            console.log(colors.cyan(`🔗 ${result.url}`));
+          }
         }
       }
     } catch (error) {

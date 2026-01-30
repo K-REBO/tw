@@ -1,6 +1,11 @@
 import { AuthManager } from "./auth.ts";
 import { getBrowserConfig } from "./browser.ts";
+import { TwitterAPI } from "./api.ts";
 import type { Browser, Page } from "npm:playwright-core@1.49.1";
+
+interface InteractiveSessionOptions {
+  useApi?: boolean;
+}
 
 export class InteractiveSession {
   private auth: AuthManager;
@@ -8,12 +13,34 @@ export class InteractiveSession {
   private page: Page | null = null;
   private pollInterval: number | null = null;
   private isRunning = false;
+  private useApi: boolean;
+  private api: TwitterAPI | null = null;
+  private cachedUsername: string | null = null;
 
-  constructor(authManager?: AuthManager) {
+  constructor(authManager?: AuthManager, options: InteractiveSessionOptions = {}) {
     this.auth = authManager || new AuthManager();
+    this.useApi = options.useApi ?? false;
   }
 
   async start(options: { debug?: boolean; headless?: boolean } = {}): Promise<void> {
+    const authData = await this.auth.getAuthData();
+
+    if (this.useApi) {
+      // API mode: no browser needed
+      this.api = new TwitterAPI(authData);
+
+      // Verify credentials
+      const verification = await this.api.verifyCredentials();
+      if (!verification.valid) {
+        throw new Error(verification.error || "Not logged in");
+      }
+      this.cachedUsername = verification.username || null;
+
+      this.isRunning = true;
+      return;
+    }
+
+    // Browser mode
     const browserConfig = await getBrowserConfig();
 
     const { firefox, chromium } = await import("npm:playwright-core@1.49.1");
@@ -25,10 +52,9 @@ export class InteractiveSession {
     });
     this.page = await this.browser.newPage();
 
-    const authData = await this.auth.getAuthData();
     const cookies = authData.cookies.map(cookie => ({
       ...cookie,
-      expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+      expires: cookie.expires ?? -1
     }));
 
     await this.page.context().addCookies(cookies);
@@ -79,6 +105,20 @@ export class InteractiveSession {
   }
 
   async getUsername(): Promise<string> {
+    if (this.useApi) {
+      if (this.cachedUsername) {
+        return this.cachedUsername;
+      }
+      if (!this.api) throw new Error("Session not started");
+
+      const verification = await this.api.verifyCredentials();
+      if (!verification.valid || !verification.username) {
+        throw new Error("Could not get username");
+      }
+      this.cachedUsername = verification.username;
+      return verification.username;
+    }
+
     if (!this.page) throw new Error("Session not started");
 
     await this.page.goto("https://x.com/home", { waitUntil: "domcontentloaded", timeout: 15000 });
@@ -110,6 +150,16 @@ export class InteractiveSession {
   }
 
   async post(text: string): Promise<{ success: boolean }> {
+    if (this.useApi) {
+      if (!this.api) throw new Error("Session not started");
+
+      const result = await this.api.post(text);
+      if (!result.success) {
+        throw new Error(result.error || "Unknown error");
+      }
+      return { success: true };
+    }
+
     if (!this.page) throw new Error("Session not started");
 
     await this.page.goto("https://x.com/compose/post", { waitUntil: "domcontentloaded", timeout: 15000 });
@@ -130,6 +180,21 @@ export class InteractiveSession {
   }
 
   async reply(tweetUrl: string, text: string): Promise<{ success: boolean }> {
+    if (this.useApi) {
+      if (!this.api) throw new Error("Session not started");
+
+      const tweetId = TwitterAPI.extractTweetId(tweetUrl);
+      if (!tweetId) {
+        throw new Error("Invalid tweet URL: could not extract tweet ID");
+      }
+
+      const result = await this.api.reply(tweetId, text);
+      if (!result.success) {
+        throw new Error(result.error || "Unknown error");
+      }
+      return { success: true };
+    }
+
     if (!this.page) throw new Error("Session not started");
 
     const normalizedUrl = tweetUrl.replace('twitter.com', 'x.com');
@@ -156,6 +221,16 @@ export class InteractiveSession {
   }
 
   async quote(tweetUrl: string, text: string): Promise<{ success: boolean }> {
+    if (this.useApi) {
+      if (!this.api) throw new Error("Session not started");
+
+      const result = await this.api.quote(tweetUrl, text);
+      if (!result.success) {
+        throw new Error(result.error || "Unknown error");
+      }
+      return { success: true };
+    }
+
     if (!this.page) throw new Error("Session not started");
 
     const normalizedUrl = tweetUrl.replace('twitter.com', 'x.com');
@@ -227,6 +302,11 @@ export class InteractiveSession {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
+    }
+
+    if (this.useApi) {
+      this.api = null;
+      return;
     }
 
     if (this.browser) {
